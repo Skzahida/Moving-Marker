@@ -1,0 +1,4 @@
+{
+    "prettier.insertPragma": true,
+    "prettier.requireConfig": true
+}

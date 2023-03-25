@@ -1,61 +1,98 @@
+import { mydata } from './coord.js';
+
 const map = L.map('map').setView([19.07094158, 72.90730592], 12);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 17,
     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 }).addTo(map);
 
-// create a red polyline from an array of LatLng points
-const latlngs = [
-    [19.07094158, 72.90730592],
-    [19.07132692, 72.90770732],
-    [19.07146338, 72.8953985],
-    [19.06790834, 72.89286813],
-    [19.07708118, 72.89948537],
-    [19.07500889, 72.89294168],
-    [19.07368225, 72.89711714],
-    [19.07335726, 72.89872306],
-    [19.07364176, 72.89723527],
-    [19.07102198, 72.90441846]
-];
+// Get the coordinates from the geojson data
+const coordinates = mydata.features.map(feature => feature.geometry.coordinates);
 
-const polyline = L.polyline(latlngs, { color: '#DE3163' }).addTo(map);
-
-// zoom the map to the polyline
-map.fitBounds(polyline.getBounds());
-map.setZoom(5);
-
-//create markerplayer
-const points = latlngs.map((v, i) => {
-    return { id: i, latlng: v };
-});
-const animMarker = L.markerPlayer(points, 20000).addTo(map);
-
-//init contorols
-const playTogBtn = document.getElementById('play-tog-btn');
-const progBar = document.getElementById('prog-bar');
-
-function startAnim() {
-    animMarker.start();
-    playTogBtn.innerText = "⏸";
-}
-
-function pauseAnim() {
-    animMarker.pause();
-    playTogBtn.innerText = "▶";
-}
-playTogBtn.addEventListener('click', e => {
-    if (animMarker.isRunning()) {
-        pauseAnim();
-    } else {
-        startAnim();
+// Create a routing control and add it to the map
+const routingControl = L.Routing.control({
+    waypoints: coordinates,
+    routeWhileDragging: false,
+    lineOptions: {
+        styles: [{ color: '#00AAFF', weight: 3 }]
+    },
+    createMarker: function(i, waypoint, n) {
+        // create a non-draggable marker
+        return L.marker(waypoint.latLng, {
+            //draggable: false,
+            icon: L.icon({
+                iconUrl: '../Moving/images/point.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowSize: [41, 41]
+            })
+        });
     }
+}).addTo(map);
+
+// Add a polyline based on the route found by the routing control
+routingControl.on('routesfound', function(e) {
+    const routes = e.routes;
+    const route = routes[0]; // assume only one route
+    const coordinates = route.coordinates;
+    const polyline = L.polyline(coordinates, { color: '#DE3163' }).addTo(map);
+
+
+    // Create a moving marker and add it to the map
+    const marker = L.Marker.movingMarker(polyline.getLatLngs(), 100000, {
+        icon: L.icon({
+            iconUrl: '../Moving/images/car.png',
+            iconSize: [30, 41],
+            iconAnchor: [15, 41],
+            popupAnchor: [2, -34],
+            shadowSize: [41, 41]
+        })
+    }).addTo(map);
+
+    const playTogBtn = document.getElementById('play-tog-btn');
+    const progBar = document.getElementById('prog-bar');
+
+    // Add event listeners to the marker
+    marker.on('start', function() {
+        playTogBtn.innerText = "⏸";
+    });
+    marker.on('stop', function() {
+        playTogBtn.innerText = "▶";
+    });
+
+    // marker.on('progress', function(e) {
+    //     progBar.setAttribute('style', `width: ${e.progress * 100}%`);
+    // });
+    marker.on('end', function() {
+        playTogBtn.innerText = "▶";
+    });
+
+    marker.on('progresschange', function(e) {
+        progBar.setAttribute('style', `width: ${e.progress}%`);
+    });
+
+    marker.on('pointchange', function(e) {
+        document.getElementById('point-id').innerText = e.point.id;
+    });
+
+
+    function pauseAnim() {
+        marker.pause();
+        playTogBtn.innerText = "▶";
+    }
+
+    // Add event listener to the play/pause button
+    playTogBtn.addEventListener('click', function() {
+        if (marker.isRunning()) {
+            pauseAnim();
+            playTogBtn.innerText = "▶";
+        } else {
+            marker.start();
+            playTogBtn.innerText = "⏸";
+        }
+    });
+
 });
-animMarker.on('end', e => {
-    playTogBtn.innerText = "▶";
-});
-animMarker.on('progresschange', e => {
-    progBar.setAttribute('style', `width: ${e.progress}%`);
-});
-animMarker.on('pointchange', e => {
-    document.getElementById('point-id').innerText = e.point.id;
-});
+// map.fitBounds(polyline.getBounds());
+// map.setZoom(5);
